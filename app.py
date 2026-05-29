@@ -13,7 +13,7 @@ from groq import Groq
 # -------------------------
 st.set_page_config(page_title="RAG Chatbot", page_icon="🤖")
 st.title("🤖 RAG Chatbot")
-st.write("Ask questions from your PDF document")
+st.write("Ask questions from your PDF")
 
 # -------------------------
 # API KEY
@@ -32,7 +32,7 @@ client = Groq(api_key=api_key)
 DATA_PATH = "data/nodes.pdf"
 
 if not os.path.exists(DATA_PATH):
-    st.error(f"File not found: {DATA_PATH}")
+    st.error("PDF not found: data/nodes.pdf")
     st.stop()
 
 reader = PdfReader(DATA_PATH)
@@ -46,7 +46,7 @@ for page in reader.pages:
 text = text.strip()
 
 if len(text) == 0:
-    st.error("PDF has no readable text. It is likely scanned/image-based.")
+    st.error("PDF has no readable text (likely scanned/image-based PDF).")
     st.stop()
 
 # -------------------------
@@ -59,12 +59,12 @@ splitter = RecursiveCharacterTextSplitter(
 
 chunks = splitter.split_text(text)
 
-if len(chunks) == 0:
-    st.error("No chunks generated from PDF")
+if not chunks:
+    st.error("No text chunks created from PDF")
     st.stop()
 
 # -------------------------
-# EMBEDDINGS + FAISS
+# EMBEDDINGS + VECTOR DB
 # -------------------------
 embeddings = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2"
@@ -74,7 +74,7 @@ vector_db = FAISS.from_texts(chunks, embeddings)
 retriever = vector_db.as_retriever()
 
 # -------------------------
-# LLM FUNCTION (FIXED)
+# GROQ LLM (STABLE FIX)
 # -------------------------
 def get_answer(context, question):
 
@@ -84,32 +84,34 @@ def get_answer(context, question):
     if not context or len(context.strip()) == 0:
         return "No relevant context found."
 
-    # limit context to avoid Groq errors
-    context = context[:3000]
+    context = context[:2000]  # safe limit
 
-    prompt = f"""
-You are a helpful AI assistant.
-
-Use the context below to answer the question.
-
+    try:
+        response = client.chat.completions.create(
+            model="llama3-70b-8192",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant that answers only from the given context."
+                },
+                {
+                    "role": "user",
+                    "content": f"""
 Context:
 {context}
 
 Question:
 {question}
-
-Give a clear and correct answer.
 """
+                }
+            ],
+            temperature=0.2
+        )
 
-    response = client.chat.completions.create(
-        model="llama3-8b-8192",
-        messages=[
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.2
-    )
+        return response.choices[0].message.content
 
-    return response.choices[0].message.content
+    except Exception as e:
+        return f"API Error: {str(e)}"
 
 # -------------------------
 # CHAT UI
