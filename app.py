@@ -1,4 +1,4 @@
-import streamlit as st
+iimport streamlit as st
 import os
 from pypdf import PdfReader
 
@@ -8,31 +8,31 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 
 from groq import Groq
 
-# ----------------------------
-# Streamlit UI
-# ----------------------------
+# -------------------------
+# UI setup
+# -------------------------
 st.set_page_config(page_title="RAG Chatbot", page_icon="🤖")
 st.title("🤖 RAG Chatbot")
-st.write("Ask questions based on your PDF document")
+st.write("Ask questions from your PDF document")
 
-# ----------------------------
+# -------------------------
 # API Key
-# ----------------------------
+# -------------------------
 api_key = os.getenv("GROQ_API_KEY")
 
 if not api_key:
-    st.error("GROQ_API_KEY not found in environment variables")
+    st.error("Missing GROQ_API_KEY in Streamlit secrets")
     st.stop()
 
 client = Groq(api_key=api_key)
 
-# ----------------------------
-# Load PDF
-# ----------------------------
+# -------------------------
+# Load PDF safely
+# -------------------------
 DATA_PATH = "data/nodes.pdf"
 
 if not os.path.exists(DATA_PATH):
-    st.error("PDF file not found: data/nodes.pdf")
+    st.error(f"File not found: {DATA_PATH}")
     st.stop()
 
 reader = PdfReader(DATA_PATH)
@@ -43,9 +43,16 @@ for page in reader.pages:
     if page_text:
         text += page_text
 
-# ----------------------------
-# Split text into chunks
-# ----------------------------
+text = text.strip()
+
+# IMPORTANT SAFETY CHECK
+if len(text) == 0:
+    st.error("PDF has no readable text. It may be a scanned/image PDF.")
+    st.stop()
+
+# -------------------------
+# Split into chunks
+# -------------------------
 splitter = RecursiveCharacterTextSplitter(
     chunk_size=500,
     chunk_overlap=50
@@ -53,9 +60,14 @@ splitter = RecursiveCharacterTextSplitter(
 
 chunks = splitter.split_text(text)
 
-# ----------------------------
-# Embeddings + FAISS
-# ----------------------------
+# IMPORTANT SAFETY CHECK
+if len(chunks) == 0:
+    st.error("No text chunks created from PDF")
+    st.stop()
+
+# -------------------------
+# Embeddings
+# -------------------------
 embeddings = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2"
 )
@@ -63,12 +75,13 @@ embeddings = HuggingFaceEmbeddings(
 vector_db = FAISS.from_texts(chunks, embeddings)
 retriever = vector_db.as_retriever()
 
-# ----------------------------
-# LLM function (Groq)
-# ----------------------------
+# -------------------------
+# LLM function
+# -------------------------
 def get_answer(context, question):
     prompt = f"""
-You are a helpful assistant.
+You are a helpful AI assistant.
+
 Use the context below to answer the question.
 
 Context:
@@ -77,7 +90,7 @@ Context:
 Question:
 {question}
 
-Give a clear and accurate answer.
+Answer clearly and accurately.
 """
 
     response = client.chat.completions.create(
@@ -87,14 +100,14 @@ Give a clear and accurate answer.
 
     return response.choices[0].message.content
 
-# ----------------------------
+# -------------------------
 # Chat UI
-# ----------------------------
+# -------------------------
 query = st.text_input("Ask your question:")
 
 if query:
     docs = retriever.get_relevant_documents(query)
-    context = " ".join([doc.page_content for doc in docs])
+    context = " ".join([d.page_content for d in docs])
 
     answer = get_answer(context, query)
 
