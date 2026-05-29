@@ -1,6 +1,7 @@
 streamlit
 groq
-langchain
+langchain==0.1.17
+langchain-community
 faiss-cpu
 sentence-transformers
 pypdf
