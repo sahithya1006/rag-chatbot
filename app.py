@@ -9,25 +9,25 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from groq import Groq
 
 # -------------------------
-# UI setup
+# UI
 # -------------------------
 st.set_page_config(page_title="RAG Chatbot", page_icon="🤖")
 st.title("🤖 RAG Chatbot")
 st.write("Ask questions from your PDF document")
 
 # -------------------------
-# API Key
+# API KEY
 # -------------------------
 api_key = os.getenv("GROQ_API_KEY")
 
 if not api_key:
-    st.error("Missing GROQ_API_KEY in Streamlit secrets")
+    st.error("Missing GROQ_API_KEY in Streamlit Secrets")
     st.stop()
 
 client = Groq(api_key=api_key)
 
 # -------------------------
-# Load PDF safely
+# LOAD PDF
 # -------------------------
 DATA_PATH = "data/nodes.pdf"
 
@@ -45,13 +45,12 @@ for page in reader.pages:
 
 text = text.strip()
 
-# IMPORTANT SAFETY CHECK
 if len(text) == 0:
-    st.error("PDF has no readable text. It may be a scanned/image PDF.")
+    st.error("PDF has no readable text. It is likely scanned/image-based.")
     st.stop()
 
 # -------------------------
-# Split into chunks
+# SPLIT TEXT
 # -------------------------
 splitter = RecursiveCharacterTextSplitter(
     chunk_size=500,
@@ -60,13 +59,12 @@ splitter = RecursiveCharacterTextSplitter(
 
 chunks = splitter.split_text(text)
 
-# IMPORTANT SAFETY CHECK
 if len(chunks) == 0:
-    st.error("No text chunks created from PDF")
+    st.error("No chunks generated from PDF")
     st.stop()
 
 # -------------------------
-# Embeddings
+# EMBEDDINGS + FAISS
 # -------------------------
 embeddings = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2"
@@ -76,9 +74,19 @@ vector_db = FAISS.from_texts(chunks, embeddings)
 retriever = vector_db.as_retriever()
 
 # -------------------------
-# LLM function
+# LLM FUNCTION (FIXED)
 # -------------------------
 def get_answer(context, question):
+
+    if not question or question.strip() == "":
+        return "Please enter a valid question."
+
+    if not context or len(context.strip()) == 0:
+        return "No relevant context found."
+
+    # limit context to avoid Groq errors
+    context = context[:3000]
+
     prompt = f"""
 You are a helpful AI assistant.
 
@@ -90,18 +98,21 @@ Context:
 Question:
 {question}
 
-Answer clearly and accurately.
+Give a clear and correct answer.
 """
 
     response = client.chat.completions.create(
-        model="llama3-70b-8192",
-        messages=[{"role": "user", "content": prompt}]
+        model="llama3-8b-8192",
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.2
     )
 
     return response.choices[0].message.content
 
 # -------------------------
-# Chat UI
+# CHAT UI
 # -------------------------
 query = st.text_input("Ask your question:")
 
