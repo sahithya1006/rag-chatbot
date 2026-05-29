@@ -1,6 +1,14 @@
+<<<<<<< HEAD
 streamlit
 groq
 langchain
 faiss-cpu
 pypdf
+=======
+streamlit
+groq
+langchain
+faiss-cpu
+pypdf
+>>>>>>> 5f975af6d88add9d1378275ba18ff3461287e8a7
 sentence-transformers
