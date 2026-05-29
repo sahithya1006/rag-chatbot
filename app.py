@@ -13,10 +13,10 @@ from groq import Groq
 # -------------------------
 st.set_page_config(page_title="RAG Chatbot", page_icon="🤖")
 st.title("🤖 RAG Chatbot")
-st.write("Ask questions from your PDF")
+st.write("Ask questions from your PDF document")
 
 # -------------------------
-# API KEY
+# API KEY (Streamlit Secrets)
 # -------------------------
 api_key = os.getenv("GROQ_API_KEY")
 
@@ -32,7 +32,7 @@ client = Groq(api_key=api_key)
 DATA_PATH = "data/nodes.pdf"
 
 if not os.path.exists(DATA_PATH):
-    st.error("PDF not found: data/nodes.pdf")
+    st.error("File not found: data/nodes.pdf")
     st.stop()
 
 reader = PdfReader(DATA_PATH)
@@ -46,7 +46,7 @@ for page in reader.pages:
 text = text.strip()
 
 if len(text) == 0:
-    st.error("PDF has no readable text (likely scanned/image-based PDF).")
+    st.error("PDF has no readable text. Use a text-based PDF (not scanned image PDF).")
     st.stop()
 
 # -------------------------
@@ -59,12 +59,12 @@ splitter = RecursiveCharacterTextSplitter(
 
 chunks = splitter.split_text(text)
 
-if not chunks:
-    st.error("No text chunks created from PDF")
+if len(chunks) == 0:
+    st.error("No text chunks generated from PDF")
     st.stop()
 
 # -------------------------
-# EMBEDDINGS + VECTOR DB
+# EMBEDDINGS + FAISS
 # -------------------------
 embeddings = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2"
@@ -74,7 +74,7 @@ vector_db = FAISS.from_texts(chunks, embeddings)
 retriever = vector_db.as_retriever()
 
 # -------------------------
-# GROQ LLM (STABLE FIX)
+# GROQ LLM (FIXED + STABLE)
 # -------------------------
 def get_answer(context, question):
 
@@ -82,17 +82,17 @@ def get_answer(context, question):
         return "Please enter a valid question."
 
     if not context or len(context.strip()) == 0:
-        return "No relevant context found."
+        return "No relevant context found in the document."
 
-    context = context[:2000]  # safe limit
+    context = context[:2000]  # safety limit
 
     try:
         response = client.chat.completions.create(
-            model="llama3-70b-8192",
+            model="llama3-8b-8192",
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a helpful assistant that answers only from the given context."
+                    "content": "You are a helpful assistant that answers ONLY from the given context."
                 },
                 {
                     "role": "user",
